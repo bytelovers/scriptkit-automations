@@ -12,7 +12,8 @@ const { parse } = await npm('node-html-parser');
 /********************
  * Constants
  ********************/
-const url = 'https://www.abonoteatro.com/catalogo/cines.php';
+const BASE_URL = 'https://www.abonoteatro.com';
+
 const SELECTORS = {
   LIST: '.row',
   ITEM: {
@@ -26,39 +27,69 @@ const SELECTORS = {
   ITEM_DETAILS: '[id^=event_content_json_id_]'
 }
 
+const CATEGORY_LIST = [
+  {
+    name: 'Teatros',
+    description: 'desc',
+    value: {
+      id: 'teatro',
+      path: '/catalogo/teatros.php'
+    },
+  },
+  {
+    name: 'Cines y Eventos',
+    description: 'desc',
+    value: {
+      id: 'cine',
+      path: '/catalogo/cines.php'
+    },
+  }
+];
+
 /********************
  * API
  ********************/
-const response = await get(url);
-const page = parse(response.data);
-const listItem = page
-  .querySelectorAll(SELECTORS.LIST);
+const getEventData = async(urlEvent) => {
+  const response = await get(urlEvent);
+  const page = parse(response.data);
+  const listItem = page
+    .querySelectorAll(SELECTORS.LIST);
 
-const resultEvents = listItem.map(item => ({
-  image: item.querySelector(SELECTORS.ITEM.IMAGE).getAttribute('src'),
-  price: item.querySelector(SELECTORS.ITEM.PRICE).textContent,
-  subtitle: item.querySelector(SELECTORS.ITEM.SUBTITLE).structuredText.trim(),
-  title: item.querySelector(SELECTORS.ITEM.TITLE).structuredText.trim(),
-  venue: {
-    title: item.querySelector(`${SELECTORS.ITEM.VENUE}`).structuredText.trim(),
-    link: item.querySelector(`${SELECTORS.ITEM.VENUE} a`).getAttribute('href'),
-  }
-}));
+  const data = listItem.map(item => ({
+    image: item.querySelector(SELECTORS.ITEM.IMAGE).getAttribute('src'),
+    price: item.querySelector(SELECTORS.ITEM.PRICE).textContent,
+    subtitle: item.querySelector(SELECTORS.ITEM.SUBTITLE).structuredText.trim(),
+    title: item.querySelector(SELECTORS.ITEM.TITLE).structuredText.trim(),
+    venue: {
+      title: item.querySelector(`${SELECTORS.ITEM.VENUE}`).structuredText.trim(),
+      link: item.querySelector(`${SELECTORS.ITEM.VENUE} a`).getAttribute('href'),
+    }
+  }));
+  return data;
+}
 
 /********************
  * UI
  ********************/
-await arg({
-  placeholder: 'Select event'
-}, async() => {
-  
-  return resultEvents.map(event => {
-    const { image, title, venue } = event;
+const categoryPrompt = async() => await arg({ placeholder: 'Select type', }, CATEGORY_LIST);
+const eventListPromt = async(eventData) => await arg({ placeholder: 'Select event' }, async() => {
+  return eventData.map(event => {
+    const { image, title, subtitle, venue } = event;
     return {
       name: title,
       description: venue.title,
-      preview: () => md(`![](${image})`),
+      preview: () => md(`
+# ${ title }
+![](${ image })
+## ${ subtitle }
+`),
     }
   });
 });
-// console.log(JSON.stringify(resultEvents, null, 2))
+
+/********************
+ * APP
+ ********************/
+const categorySelected = await categoryPrompt();
+const resultData = await getEventData(`${ BASE_URL }${ categorySelected.path }`);
+const eventSelected = await eventListPromt(resultData);
