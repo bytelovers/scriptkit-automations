@@ -30,7 +30,26 @@ const SELECTORS = {
     TITLE: '.noo-tribe-events-header .entry-title',
     VENUE: '.tribe-events-event-meta'
   },
-  ITEM_DETAILS: '[id^=event_content_json_id_]'
+};
+
+const EVENT_DETAIL_OBJECT = {
+  LIST: '.bsesiones',
+  ITEM: {
+    DATE: '.bfechasesion',
+    DATE_DAY: '.bfechasesion .psesb',
+    DATE_MONTH: '.bfechasesion p.psess:first-child',
+    DATE_WEEKDAY: '.bfechasesion p.psess:last-child',
+    INFO: '.binfosesion',
+    NAME: '.entry-title',
+  },
+  SINGLE_SESSION: {
+    HOUR: '.horasesion',
+    BUY_LINK: '.entry-summary .btncompra',
+  },
+  MULTIPLE_SESSION: {
+    HOUR: '.btnhora',
+    BUY_LINKS: '.btnhora',
+  }
 }
 
 const CATEGORY_LIST = [
@@ -87,11 +106,59 @@ const getEventData = async(urlEvent) => {
 }
 
 const getEventDetail = async(event) => {
-  const response = await post(`${ BASE_URL }${ EVENT_LIST_PATHS.DETAIL }`, {
-    action: 'show',
-    content: event
+  const response = await post(
+    `${ BASE_URL }${ EVENT_LIST_PATHS.DETAIL }`, {
+      action: 'show',
+      content: event
+    }, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
-  return response.data;
+
+  const page = parse(`<div>${response.data}</div>`);
+  const listItem = page
+    .querySelectorAll(EVENT_DETAIL_OBJECT.LIST);
+
+  const parseSessionDate = event => [
+    event.querySelector(EVENT_DETAIL_OBJECT.ITEM.DATE_WEEKDAY).textContent,
+    event.querySelector(EVENT_DETAIL_OBJECT.ITEM.DATE_DAY).textContent,
+    event.querySelector(EVENT_DETAIL_OBJECT.ITEM.DATE_MONTH).textContent
+  ].join(' ');
+  
+  
+  const eventDetailData = listItem.map(event => {
+    const sessions = [];
+    const hasSingleSession = Boolean(event.querySelector('h3.horasesion'));
+    
+    if (hasSingleSession) {
+      sessions.push({
+        title: '',
+        date: parseSessionDate(event),
+        hour: event.querySelector('h3.horasesion').textContent,
+        buy_link: event.querySelector(EVENT_DETAIL_OBJECT.SINGLE_SESSION.BUY_LINK).getAttribute('href'),
+      })
+    } else {
+      event.querySelectorAll(
+        `${ EVENT_DETAIL_OBJECT.ITEM.INFO } ${ EVENT_DETAIL_OBJECT.MULTIPLE_SESSION.HOUR }`
+      ).forEach(session => {
+        sessions.push({
+          title: '',
+          date: parseSessionDate(event),
+          hour: session.textContent.trim(),
+          buy_link: session.getAttribute('href')
+        })
+      })
+    }
+
+
+    return {
+      title: event.querySelector(EVENT_DETAIL_OBJECT.ITEM.NAME).textContent.trim(),
+      sessions,
+    }
+  });
+
+  return eventDetailData;
 }
 
 /********************
@@ -127,4 +194,4 @@ const resultData = await getEventData(`${ BASE_URL }${ categorySelected.path }`)
 const eventSelected = await eventListPrompt(resultData);
 
 const eventDetail = await getEventDetail(eventSelected);
-// console.log(eventDetail);
+console.log(JSON.stringify(eventDetail, null, 2));
