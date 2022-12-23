@@ -133,7 +133,6 @@ const getEventDetail = async(event) => {
     
     if (hasSingleSession) {
       sessions.push({
-        title: '',
         date: parseSessionDate(event),
         hour: event.querySelector('h3.horasesion').textContent,
         buy_link: event.querySelector(EVENT_DETAIL_OBJECT.SINGLE_SESSION.BUY_LINK).getAttribute('href'),
@@ -143,7 +142,6 @@ const getEventDetail = async(event) => {
         `${ EVENT_DETAIL_OBJECT.ITEM.INFO } ${ EVENT_DETAIL_OBJECT.MULTIPLE_SESSION.HOUR }`
       ).forEach(session => {
         sessions.push({
-          title: '',
           date: parseSessionDate(event),
           hour: session.textContent.trim(),
           buy_link: session.getAttribute('href')
@@ -181,10 +179,27 @@ const eventListPrompt = async(eventData) => await arg({
 ![](${ image })
 ## ${ subtitle }
 `),
-      value: event._metadata
+      value: event
     }
   });
 });
+const eventDetailPrompt = async(eventDetail) => await arg({
+  placeholder: 'Select session'
+}, async() => {
+
+  const events = eventDetail.events.reduce((acc, event) => {
+    const sessions = event.sessions.map(session => ({
+      title: event.title,
+      ...session
+    }));
+    return acc.concat(sessions);
+  }, []);
+
+  return events.map(session => ({
+    name: session.title.split(' - ').pop().trim(),
+    description: `(${ session.date } ${ session.hour })`
+  }));
+})
 
 /********************
  * APP
@@ -193,5 +208,9 @@ const categorySelected = await categoryPrompt();
 const resultData = await getEventData(`${ BASE_URL }${ categorySelected.path }`);
 const eventSelected = await eventListPrompt(resultData);
 
-const eventDetail = await getEventDetail(eventSelected);
-console.log(JSON.stringify(eventDetail, null, 2));
+const eventDetail = await getEventDetail(eventSelected._metadata);
+await eventDetailPrompt({ events: eventDetail });
+
+
+
+// console.log(JSON.stringify({ events: eventDetail }, null, 2));
