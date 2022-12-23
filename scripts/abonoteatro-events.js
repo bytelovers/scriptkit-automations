@@ -90,18 +90,23 @@ const getEventData = async(urlEvent) => {
   const listItem = page
     .querySelectorAll(SELECTORS.LIST);
 
-  const data = listItem.map(item => ({
-    _metadata: item.nextSibling.nextSibling.getAttribute('value'),
-    image: item.querySelector(SELECTORS.ITEM.IMAGE).getAttribute('src'),
-    metadata: getRawMetadata(item.nextSibling.nextSibling.getAttribute('value')),
-    price: item.querySelector(SELECTORS.ITEM.PRICE).textContent,
-    subtitle: item.querySelector(SELECTORS.ITEM.SUBTITLE).structuredText.trim(),
-    title: item.querySelector(SELECTORS.ITEM.TITLE).structuredText.trim(),
-    venue: {
-      title: item.querySelector(`${SELECTORS.ITEM.VENUE}`).structuredText.trim(),
-      link: item.querySelector(`${SELECTORS.ITEM.VENUE} a`).getAttribute('href'),
+  const data = listItem.map(item => {
+    const eventMetadata = item.nextElementSibling.nextElementSibling;
+    const hasMetadata = () => eventMetadata.tagName === 'INPUT';    
+
+    return {
+      _metadata: hasMetadata() ? eventMetadata.getAttribute('value') : null,
+      image: item.querySelector(SELECTORS.ITEM.IMAGE).getAttribute('src'),
+      metadata: hasMetadata() ? getRawMetadata(eventMetadata.getAttribute('value')) : null,
+      price: item.querySelector(SELECTORS.ITEM.PRICE).textContent,
+      subtitle: item.querySelector(SELECTORS.ITEM.SUBTITLE).structuredText.trim(),
+      title: item.querySelector(SELECTORS.ITEM.TITLE).structuredText.trim(),
+      venue: {
+        title: item.querySelector(`${SELECTORS.ITEM.VENUE}`).structuredText.trim(),
+        link: item.querySelector(`${SELECTORS.ITEM.VENUE} a`).getAttribute('href'),
+      }
     }
-  }));
+  });
   return data;
 }
 
@@ -172,7 +177,7 @@ const eventListPrompt = async(eventData) => await arg({
     const { image, title, subtitle, venue } = event;
     return {
       name: title,
-      description: event.metadata.sub,//venue.title,
+      // description: event.metadata.sub,//venue.title,
       img: image,
       preview: () => md(`
 # ${ title }
@@ -206,6 +211,7 @@ const eventDetailPrompt = async(eventDetail) => await arg({
  ********************/
 const categorySelected = await categoryPrompt();
 const resultData = await getEventData(`${ BASE_URL }${ categorySelected.path }`);
+console.log(JSON.stringify(resultData, null, 2));
 const eventSelected = await eventListPrompt(resultData);
 
 const eventDetail = await getEventDetail(eventSelected._metadata);
