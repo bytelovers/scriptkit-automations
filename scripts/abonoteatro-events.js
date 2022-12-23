@@ -18,6 +18,7 @@ const EVENT_LIST_PATHS = {
   THEATERS: '/catalogo/teatros.php',
   CINEMAS: '/catalogo/cines.php',
   DETAIL: '/catalogo/detalle_evento.php',
+  MOVIE_DETAIL: '/catalogo/cine_peliculas.php',
 }
 
 const SELECTORS = {
@@ -48,7 +49,7 @@ const EVENT_DETAIL_OBJECT = {
   },
   MULTIPLE_SESSION: {
     HOUR: '.btnhora',
-    BUY_LINKS: '.btnhora',
+    BUY_LINKS: '.btncompra',
   }
 }
 
@@ -121,17 +122,18 @@ const getEventDetail = async(event) => {
     },
   });
 
-  const page = parse(`<div>${response.data}</div>`);
+  const page = parse(`<div><div>${response.data}</div></div>`);
   const listItem = page
     .querySelectorAll(EVENT_DETAIL_OBJECT.LIST);
+
+    console.log(page.structure);
 
   const parseSessionDate = event => [
     event.querySelector(EVENT_DETAIL_OBJECT.ITEM.DATE_WEEKDAY).textContent,
     event.querySelector(EVENT_DETAIL_OBJECT.ITEM.DATE_DAY).textContent,
     event.querySelector(EVENT_DETAIL_OBJECT.ITEM.DATE_MONTH).textContent
   ].join(' ');
-  
-  
+
   const eventDetailData = listItem.map(event => {
     const sessions = [];
     const hasSingleSession = Boolean(event.querySelector('h3.horasesion'));
@@ -144,7 +146,7 @@ const getEventDetail = async(event) => {
       })
     } else {
       event.querySelectorAll(
-        `${ EVENT_DETAIL_OBJECT.ITEM.INFO } ${ EVENT_DETAIL_OBJECT.MULTIPLE_SESSION.HOUR }`
+        `${ EVENT_DETAIL_OBJECT.ITEM.INFO } ${ EVENT_DETAIL_OBJECT.MULTIPLE_SESSION.BUY_LINKS }`
       ).forEach(session => {
         sessions.push({
           date: parseSessionDate(event),
@@ -154,7 +156,7 @@ const getEventDetail = async(event) => {
       })
     }
 
-
+    console.log('>>>>', hasSingleSession, sessions);
     return {
       title: event.querySelector(EVENT_DETAIL_OBJECT.ITEM.NAME).textContent.trim(),
       sessions,
@@ -172,12 +174,11 @@ const eventListPrompt = async(eventData) => await arg({
   placeholder: 'Select event',
   hint: `Total events: ${ eventData.length }`
 }, async() => {
-  // console.log(JSON.stringify(eventData, null, 2));
   return eventData.map(event => {
     const { image, title, subtitle, venue } = event;
     return {
       name: title,
-      // description: event.metadata.sub,//venue.title,
+      description: venue.title, //event.metadata.sub || ,
       img: image,
       preview: () => md(`
 # ${ title }
@@ -202,7 +203,8 @@ const eventDetailPrompt = async(eventDetail) => await arg({
 
   return events.map(session => ({
     name: session.title.split(' - ').pop().trim(),
-    description: `(${ session.date } ${ session.hour })`
+    description: `(${ session.date } ${ session.hour })`,
+    value: session,
   }));
 })
 
@@ -211,12 +213,19 @@ const eventDetailPrompt = async(eventDetail) => await arg({
  ********************/
 const categorySelected = await categoryPrompt();
 const resultData = await getEventData(`${ BASE_URL }${ categorySelected.path }`);
-console.log(JSON.stringify(resultData, null, 2));
 const eventSelected = await eventListPrompt(resultData);
 
-const eventDetail = await getEventDetail(eventSelected._metadata);
-await eventDetailPrompt({ events: eventDetail });
+let event = null;
 
+if (eventSelected._metadata) {
+  const eventDetail = await getEventDetail(eventSelected._metadata);
+  event = await eventDetailPrompt({ events: eventDetail });
+} else {
+  const movieData = await getEventData(`${ BASE_URL }${ EVENT_LIST_PATHS.MOVIE_DETAIL }`)
+  const movieSelected = await eventListPrompt(movieData);
+  const movieDetail = await getEventDetail(movieSelected);
+  console.log(movieDetail);
+  event = await eventDetailPrompt({ events: movieDetail });
+}
 
-
-// console.log(JSON.stringify({ events: eventDetail }, null, 2));
+console.log(JSON.stringify(event, null, 2));
